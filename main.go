@@ -7,15 +7,15 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
 )
 
 var (
-	// Limit each IP to 20 requests per 5 minutes
-	rateLimit         = 20
-	rateLimitDuration = 5 * time.Minute
+	rateLimit         = os.Getenv("RATE_LIMIT_REQUESTS")
+	rateLimitDuration = os.Getenv("RATE_LIMIT_PER_MINUTES") * time.Minute
 	requestCounts     = make(map[string]int)
 	countsLock        = sync.Mutex{}
 	// Max allowed size of the request body is 10MB
