@@ -129,7 +129,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Proxying request to %q from %s", preparedURL, r.RemoteAddr)
 
 	// Create request
-	req, err := http.NewRequestWithContext(r.Context(), "GET", preparedURL, nil)
+	req, err := http.NewRequestWithContext(r.Context(), r.Method, preparedURL, r.Body)
 	if err != nil {
 		log.Printf("Failed to create request for %q: %v", preparedURL, err)
 		http.Error(w, "Failed to create request", http.StatusInternalServerError)
