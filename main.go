@@ -144,10 +144,12 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set headers
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-	req.Header.Set("Accept", "*/*")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	// Copy request headers
+	for key, values := range r.Header {
+		for _, value := range values {
+			req.Header().Add(key, value)
+		}
+	}
 
 	// Make request
 	resp, err := client.Do(req)
