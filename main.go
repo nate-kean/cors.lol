@@ -107,11 +107,6 @@ func prepareURL(rawURL string) (string, error) {
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
-	// Set CORS headers
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "*")
-
 	// Handle OPTIONS method
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusOK)
@@ -173,7 +168,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Ensure CORS headers are set
+	// Override CORS headers
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "*")
