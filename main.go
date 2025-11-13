@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -34,7 +35,18 @@ var (
 			MaxConnsPerHost:       100,
 		},
 	}
+	// Response cache for successful requests
+	responseCache = make(map[string]*CacheEntry)
+	cacheLock     = sync.RWMutex{}
 )
+
+// CacheEntry stores cached HTTP responses
+type CacheEntry struct {
+	StatusCode int
+	Headers    http.Header
+	Body       []byte
+	CachedAt   time.Time
+}
 
 func parseInt(s string) int {
 	i, err := strconv.Atoi(s)
@@ -128,6 +140,28 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Proxying request to %q from %s", preparedURL, r.RemoteAddr)
 
+	// Check cache for successful responses
+	cacheLock.RLock()
+	cachedEntry, exists := responseCache[preparedURL]
+	cacheLock.RUnlock()
+
+	if exists {
+		log.Printf("Serving cached response for %q", preparedURL)
+		// Copy cached headers
+		for key, values := range cachedEntry.Headers {
+			for _, value := range values {
+				w.Header().Add(key, value)
+			}
+		}
+		// Override CORS headers
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "*")
+		w.WriteHeader(cachedEntry.StatusCode)
+		w.Write(cachedEntry.Body)
+		return
+	}
+
 	// Create request
 	req, err := http.NewRequestWithContext(r.Context(), r.Method, preparedURL, r.Body)
 	if err != nil {
@@ -158,6 +192,27 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
+	// Read response body
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Error reading response for %q: %v", preparedURL, err)
+		http.Error(w, "Failed to read response", http.StatusInternalServerError)
+		return
+	}
+
+	// Cache successful responses (2xx status codes)
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		cacheLock.Lock()
+		responseCache[preparedURL] = &CacheEntry{
+			StatusCode: resp.StatusCode,
+			Headers:    resp.Header.Clone(),
+			Body:       bodyBytes,
+			CachedAt:   time.Now(),
+		}
+		cacheLock.Unlock()
+		log.Printf("Cached successful response for %q", preparedURL)
+	}
+
 	// Copy response headers
 	for key, values := range resp.Header {
 		for _, value := range values {
@@ -173,8 +228,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	// Write status code
 	w.WriteHeader(resp.StatusCode)
 
-	// Copy response body
-	written, err := io.Copy(w, resp.Body)
+	// Write cached body
+	written, err := io.Copy(w, bytes.NewReader(bodyBytes))
 	if err != nil {
 		log.Printf("Error copying response for %q after %d bytes: %v", preparedURL, written, err)
 		return
